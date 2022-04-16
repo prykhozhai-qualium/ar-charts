@@ -14,6 +14,9 @@ export default {
   name: "App",
   data() {
     return {
+      framestamp: 0,
+      framestamp_vector: 1,
+      framestamp_scale: Math.PI * 600,
       camera: null,
       scene: null,
       renderer: null,
@@ -33,16 +36,16 @@ export default {
       options: {
         scale: 0.5,
         points: {
-          width: 40,
-          length: 40,
+          width: 60,
+          length: 60,
           color: new THREE.Color(0xffffff),
         },
         grid: {
           text: null,
           size: {
-            x: 20,
-            y: 20,
-            z: 20,
+            x: 15,
+            y: 15,
+            z: 15,
           },
         },
       },
@@ -50,6 +53,24 @@ export default {
   },
   components: {},
   methods: {
+    createAnimFunction(x, z) {
+      let k_1 =
+        (1 / 2) * Math.cos((this.framestamp / this.framestamp_scale) * Math.PI);
+      let k_2 =
+        (1 / 4) * Math.sin((this.framestamp / this.framestamp_scale) * Math.PI);
+      let k_3 =
+        (1 / 4) *
+        Math.sin(16 * (this.framestamp / this.framestamp_scale) * Math.PI);
+      let y =
+        2 * Math.cos(k_2 * x + this.framestamp / 15000) +
+        2 * Math.cos(k_2 * z + this.framestamp / 15000) +
+        5 * k_2 * Math.sin(k_1 * z) +
+        6;
+
+      y = 1.5 * (k_3 + 0.25) * y;
+
+      return y;
+    },
     setUpSphere(parent) {
       const geometry = new THREE.IcosahedronGeometry(0.1, 3);
       const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
@@ -58,7 +79,6 @@ export default {
         material,
         this.options.points.width * this.options.points.length
       );
-      let i = 0;
 
       let x_ratio = this.options.grid.size.x / this.options.points.width;
       let z_ratio = this.options.grid.size.z / this.options.points.length;
@@ -70,32 +90,41 @@ export default {
         (this.options.grid.size.z - (1 / z_ratio) * z_ratio) /
         this.options.points.length;
 
-      for (let _x = 0; _x < this.options.points.width; _x++) {
-        for (let _z = 0; _z < this.options.points.length; _z++) {
-          const matrix = new THREE.Matrix4();
-          let z = scale_z * _z;
-          let x = scale_x * _x;
-          let y =
-            2 * Math.cos((1 / 2) * x) + 2 + 2 * Math.cos((1 / 2) * z) + 2 + 1;
-          matrix.setPosition(x, y, z);
+      mesh.instanceMatrix;
 
-          let scale = (y / this.options.grid.size.y) * 8;
+      this.animation_frame_callbacks.push((timestamp) => {
+        let i = 0;
 
-          matrix.scale(new THREE.Vector3(scale, scale, scale));
+        for (let _x = 0; _x < this.options.points.width; _x++) {
+          for (let _z = 0; _z < this.options.points.length; _z++) {
+            const matrix = new THREE.Matrix4();
+            let z = scale_z * _z;
+            let x = scale_x * _x;
 
-          mesh.setMatrixAt(i, matrix);
-          mesh.setColorAt(
-            i,
-            new THREE.Color(
-              _z / this.options.points.length,
-              _x / this.options.points.width,
-              1
-            )
-          );
+            let y = this.createAnimFunction(_x, _z);
+            matrix.setPosition(x, y, z);
 
-          i++;
+            let scale = (y / this.options.grid.size.y) * 8;
+
+            matrix.scale(new THREE.Vector3(scale, scale, scale));
+
+            mesh.updateMatrix();
+            mesh.setMatrixAt(i, matrix);
+
+            mesh.setColorAt(
+              i,
+              new THREE.Color(
+                _z / this.options.points.length,
+                _x / this.options.points.width,
+                1
+              )
+            );
+
+            i++;
+            mesh.instanceMatrix.needsUpdate = true;
+          }
         }
-      }
+      });
 
       mesh.position.x = -this.options.grid.size.x / 2;
       mesh.position.z = -this.options.grid.size.z / 2;
@@ -269,14 +298,14 @@ export default {
     },
     setUpScene() {
       this.camera = new THREE.PerspectiveCamera(
-        70,
+        45,
         window.innerWidth / window.innerHeight,
         0.01,
-        40
+        60
       );
-      this.camera.position.z = 15;
-      this.camera.position.x = 15;
-      this.camera.position.y = 10;
+      this.camera.position.z = 25;
+      this.camera.position.x = 25;
+      this.camera.position.y = 35;
 
       this.camera.lookAt(new THREE.Vector3(0, 0, 0));
       this.scene = new THREE.Scene();
@@ -333,8 +362,15 @@ export default {
     },
     render(timestamp, frame) {
       let T = this;
+      if (this.framestamp == 0) {
+        this.framestamp_vector = 1;
+      } else if (this.framestamp == this.framestamp_scale) {
+        this.framestamp_vector = -1;
+      }
+      this.framestamp = this.framestamp + this.framestamp_vector;
+
       T.animation_frame_callbacks.forEach((cb) => {
-        cb();
+        cb(timestamp);
       });
 
       if (frame) {
@@ -382,21 +418,21 @@ export default {
   mounted() {
     this.setUpScene();
 
-    const mesh = new THREE.Mesh();
+    // const mesh = new THREE.Mesh();
 
-    this.setUpGrid(mesh);
-    // this.setUpPoints(mesh);
-    this.setUpSphere(mesh);
-    this.animation_frame_callbacks.push(() => {
-      this.objects.grid.text.mesh.children.forEach((text) => {
-        text.lookAt(this.camera.position);
-      });
-      mesh.rotation.y += 0.005;
-    });
+    // this.setUpGrid(mesh);
+    // // this.setUpPoints(mesh);
+    // this.setUpSphere(mesh);
+    // this.animation_frame_callbacks.push(() => {
+    //   this.objects.grid.text.mesh.children.forEach((text) => {
+    //     text.lookAt(this.camera.position);
+    //   });
+    //   mesh.rotation.y += 0.005;
+    // });
 
-    mesh.scale.set(1, 1, 1);
+    // mesh.scale.set(1, 1, 1);
 
-    this.scene.add(mesh);
+    // this.scene.add(mesh);
   },
 };
 </script>
